@@ -638,7 +638,13 @@ def processar_adesao(arquivo, d_ini, d_fim, aplicar_imp, perc_imp):
     if df_adesao.empty:
         st.warning("Nenhuma comissão de adesão foi encontrada no arquivo.")
         return False
-
+    
+    # Handle % ADESÃO column
+    if "% ADESÃO" not in df_adesao.columns:
+        df_adesao["% ADESÃO"] = 100.0
+    df_adesao["% ADESÃO"].fillna(100.0, inplace=True)
+    df_adesao["PERC_ADESAO_NORM"] = df_adesao["% ADESÃO"].apply(normalizar_percentual)
+    
     st.session_state.pdfs = {}
     st.session_state.resumo = []
 
@@ -646,7 +652,11 @@ def processar_adesao(arquivo, d_ini, d_fim, aplicar_imp, perc_imp):
         dv = df_adesao[df_adesao["CONSULTOR"] == vend].copy()
         dv["VALOR_BASE"] = dv["VALOR BASE ADESÃO"].apply(limpar_moeda)
         dv["DESC"] = dv["DESCONTO RASTREADOR"].apply(limpar_moeda)
-        dv["LIQUIDO"] = dv["VALOR_BASE"] - dv["DESC"]
+        
+        # Aplicar % ADESÃO sobre o VALOR BASE
+        dv["VALOR_BASE_CALC"] = dv["VALOR_BASE"] * (dv["PERC_ADESAO_NORM"] / 100)
+        dv["LIQUIDO"] = dv["VALOR_BASE_CALC"] - dv["DESC"]
+        
         dv["VALOR_FINAL"] = (dv["LIQUIDO"] * (1 - perc_imp/100 if aplicar_imp else 1.0)).round(2)
         
         st.session_state.pdfs[vend] = gerar_pdf_universal(vend, dv, periodo_txt, "Adesões")
